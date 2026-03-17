@@ -20,12 +20,12 @@ def require_notification_api_key(x_api_key: Annotated[str | None, Header()] = No
 
 
 @router.put(
-    "/record_notification",
+    "/add_notification",
     response_model=NotificationOut,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_notification_api_key)],
 )
-def record_notification(payload: NotificationIn, db: Session = Depends(get_db)) -> Notification:
+def add_notification(payload: NotificationIn, db: Session = Depends(get_db)) -> Notification:
     notification = Notification(
         app_name=normalize_text(payload.app),
         text=normalize_text(payload.text),
