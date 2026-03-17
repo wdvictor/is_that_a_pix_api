@@ -77,7 +77,8 @@ CREATE DATABASE is_that_a_pix;
 CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     app_name VARCHAR(255) NOT NULL,
-    text TEXT NOT NULL
+    text TEXT NOT NULL,
+    is_financial_transaction BOOLEAN NULL
 );
 
 CREATE INDEX IF NOT EXISTS ix_notifications_id ON notifications (id);
@@ -92,10 +93,25 @@ SELECT * FROM notifications ORDER BY id DESC;
 
 ## 7) Run Alembic migrations
 
-If `DATABASE_URL` is set in `.env`, just run:
+If `DATABASE_URL` is set in `.env`, apply the existing migrations with:
 
 ```bash
+source .venv/bin/activate
+pip install -r requirements.txt
 alembic upgrade head
+```
+
+Notes:
+
+- In this repository, the migration file for this change is already created in `alembic/versions/20260317_0002_add_is_financial_transaction_to_notifications.py`.
+- Because the migration file already exists, in shared environments such as staging/production you only need `alembic upgrade head`.
+- The new column is nullable, so existing rows remain valid and will keep `NULL`.
+- If you need to generate an equivalent migration locally from scratch before committing, use:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+alembic revision --autogenerate -m "add is_financial_transaction to notifications"
 ```
 
 ## 8) Run API locally
@@ -115,26 +131,28 @@ gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000 -w 2
 ### Endpoint
 
 - Method: `PUT`
-- URL: `http://localhost:8000/record_notification`
+- URL: `http://localhost:8000/add_notification`
 - Header: `X-API-Key: <NOTIFICATION_API_KEY>`
 - Body:
 
 ```json
 {
   "app": "99pay",
-  "text": "99pay Transação: Valores enviados R$28,50 transferência da sua 99Pay às 12/03/26 20:36:29."
+  "text": "99pay Transação: Valores enviados R$28,50 transferência da sua 99Pay às 12/03/26 20:36:29.",
+  "is_financial_notification": true
 }
 ```
 
 ### cURL request
 
 ```bash
-curl -X PUT "http://localhost:8000/record_notification" \
+curl -X PUT "http://localhost:8000/add_notification" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: ${NOTIFICATION_API_KEY}" \
   -d '{
     "app": "99pay",
-    "text": "99pay Transação: Valores enviados R$28,50 transferência da sua 99Pay às 12/03/26 20:36:29."
+    "text": "99pay Transação: Valores enviados R$28,50 transferência da sua 99Pay às 12/03/26 20:36:29.",
+    "is_financial_notification": true
   }'
 ```
 
@@ -142,6 +160,7 @@ Expected behavior:
 
 - `app` and `text` are normalized to lowercase, accents removed, and extra spaces collapsed.
 - Data is persisted in `notifications` table.
+- `is_financial_notification` can be `true`, `false`, or `null`, and is stored in the `is_financial_transaction` column.
 
 ## 10) Render deployment
 
@@ -167,7 +186,8 @@ gunicorn app.main:app -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT -w 2
 7. Run migrations (Render Shell or Release Command):
 
 ```bash
-alembic upgrade head
+python3 -m pip install -r requirements.txt
+python3 -m alembic upgrade head
 ```
 
 8. Test health endpoint:
@@ -175,6 +195,45 @@ alembic upgrade head
 ```bash
 curl https://<your-render-service>/health
 ```
+
+## 11) Step by step for this migration on Render
+
+1. Ensure the repository version deployed to Render includes:
+   - the API change that accepts `is_financial_notification`;
+   - the model change with `is_financial_transaction`;
+   - the Alembic migration `20260317_0002_add_is_financial_transaction_to_notifications.py`.
+2. In Render, open your PostgreSQL service and confirm the connection string that will be used in the app's `DATABASE_URL`.
+3. In the Render Web Service, confirm these environment variables are configured:
+   - `DATABASE_URL`
+   - `NOTIFICATION_API_KEY`
+   - `ENABLE_DOCS`
+4. Open the Render Shell for the Web Service, or configure the same migration command as a Release Command.
+5. Run the migration commands:
+
+```bash
+cd /opt/render/project/src
+python3 -m pip install -r requirements.txt
+python3 -m alembic current
+python3 -m alembic upgrade head
+python3 -m alembic current
+```
+
+6. Validate that the app is up and the schema was updated:
+
+```bash
+curl https://<your-render-service>/health
+```
+
+7. Optionally validate the new column directly in PostgreSQL:
+
+```sql
+SELECT column_name, data_type, is_nullable
+FROM information_schema.columns
+WHERE table_name = 'notifications'
+  AND column_name = 'is_financial_transaction';
+```
+
+8. After deployment, send a test request with `is_financial_notification` set to `true`, `false`, and omitted to confirm persistence and `NULL` behavior.
 
 ## Security note about `POSTGRES_*` in docker-compose
 

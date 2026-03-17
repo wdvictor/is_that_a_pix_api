@@ -29,6 +29,7 @@ def add_notification(payload: NotificationIn, db: Session = Depends(get_db)) -> 
     notification = Notification(
         app_name=normalize_text(payload.app),
         text=normalize_text(payload.text),
+        is_financial_transaction=payload.is_financial_notification,
     )
     db.add(notification)
     db.commit()
