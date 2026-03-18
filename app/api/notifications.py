@@ -12,7 +12,9 @@ from app.schemas.notification import NotificationIn, NotificationOut, Notificati
 from app.services.text_normalizer import normalize_text
 
 router = APIRouter(tags=["notifications"])
-PAGE_SIZE = 100
+DEFAULT_PAGE_SIZE = 100
+MIN_PAGE_SIZE = 1
+MAX_PAGE_SIZE = 2000
 
 
 def require_notification_api_key(x_api_key: Annotated[str | None, Header()] = None) -> None:
@@ -66,6 +68,7 @@ def update_notification(
 )
 def get_all_notifications(
     p: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=MIN_PAGE_SIZE, le=MAX_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
     q: str | None = None,
     isft: bool | None = None,
     db: Session = Depends(get_db),
@@ -80,6 +83,6 @@ def get_all_notifications(
     else:
         statement = statement.where(Notification.is_financial_transaction.is_(isft))
 
-    statement = statement.order_by(Notification.id.desc()).offset((p - 1) * PAGE_SIZE).limit(PAGE_SIZE)
+    statement = statement.order_by(Notification.id.desc()).offset((p - 1) * size).limit(size)
 
     return list(db.scalars(statement).all())
