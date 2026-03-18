@@ -75,7 +75,9 @@ def get_all_notifications(
     if q:
         statement = statement.where(Notification.text.op("~")(normalize_text(q)))
 
-    if isft is not None:
+    if isft is None:
+        statement = statement.where(Notification.is_financial_transaction.is_(None))
+    else:
         statement = statement.where(Notification.is_financial_transaction.is_(isft))
 
     statement = statement.order_by(Notification.id.desc()).offset((p - 1) * PAGE_SIZE).limit(PAGE_SIZE)
