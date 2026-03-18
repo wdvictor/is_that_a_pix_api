@@ -1,14 +1,14 @@
 from secrets import compare_digest
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.notification import Notification
-from app.schemas.notification import NotificationIn, NotificationOut
+from app.schemas.notification import NotificationIn, NotificationOut, NotificationUpdateIn
 from app.services.text_normalizer import normalize_text
 
 router = APIRouter(tags=["notifications"])
@@ -37,6 +37,26 @@ def add_notification(payload: NotificationIn, db: Session = Depends(get_db)) -> 
     db.commit()
     db.refresh(notification)
     return notification
+
+
+@router.put(
+    "/update_notification",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_notification_api_key)],
+)
+def update_notification(
+    payload: NotificationUpdateIn,
+    db: Session = Depends(get_db),
+) -> Response:
+    notification = db.get(Notification, payload.id)
+
+    if notification is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="notification not found")
+
+    notification.is_financial_transaction = payload.is_financial_transaction
+    db.commit()
+
+    return Response(status_code=status.HTTP_200_OK)
 
 
 @router.get(

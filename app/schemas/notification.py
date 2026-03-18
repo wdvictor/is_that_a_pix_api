@@ -7,6 +7,11 @@ class NotificationIn(BaseModel):
     is_financial_notification: bool | None = None
 
 
+class NotificationUpdateIn(BaseModel):
+    id: int = Field(gt=0)
+    is_financial_transaction: bool
+
+
 class NotificationOut(BaseModel):
     id: int
     app_name: str
