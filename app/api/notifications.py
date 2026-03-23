@@ -61,6 +61,26 @@ def update_notification(
     return Response(status_code=status.HTTP_200_OK)
 
 
+@router.delete(
+    "/delete_notification",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_notification_api_key)],
+)
+def delete_notification(
+    id: Annotated[int, Query(gt=0)],
+    db: Session = Depends(get_db),
+) -> Response:
+    notification = db.get(Notification, id)
+
+    if notification is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="notification not found")
+
+    db.delete(notification)
+    db.commit()
+
+    return Response(status_code=status.HTTP_200_OK)
+
+
 @router.get(
     "/get_all_notifications",
     response_model=list[NotificationOut],
